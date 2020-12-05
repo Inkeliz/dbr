@@ -3,6 +3,7 @@ package dbr
 import (
 	"context"
 	"database/sql"
+	"reflect"
 	"strconv"
 )
 
@@ -16,6 +17,7 @@ type UpdateStmt struct {
 
 	Table      string
 	Value      map[string]interface{}
+	Column     []string
 	WhereCond  []Builder
 	LimitCount int64
 }
@@ -140,6 +142,27 @@ func (b *UpdateStmt) Where(query interface{}, value ...interface{}) *UpdateStmt 
 // Set updates column with value.
 func (b *UpdateStmt) Set(column string, value interface{}) *UpdateStmt {
 	b.Value[column] = value
+	return b
+}
+
+// Columns adds columns
+func (b *UpdateStmt) Columns(column ...string) *UpdateStmt {
+	b.Column = column
+	return b
+}
+
+// Record adds a tuple for columns from a struct
+func (b *UpdateStmt) Record(structValue interface{}) *UpdateStmt {
+	v := reflect.Indirect(reflect.ValueOf(structValue))
+
+	if v.Kind() == reflect.Struct {
+		m := structMap(v)
+		for _, col := range b.Column {
+			if val, ok := m[col]; ok {
+				b.Set(col, val.Interface())
+			}
+		}
+	}
 	return b
 }
 

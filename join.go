@@ -35,7 +35,7 @@ func join(t joinType, m method, table interface{}, on interface{}) Builder {
 			buf.WriteValue(table)
 		}
 		if m == joinUsing {
-			buf.WriteString(" USING ")
+			buf.WriteString(" USING (")
 		} else {
 			buf.WriteString(" ON ")
 		}
@@ -45,6 +45,9 @@ func join(t joinType, m method, table interface{}, on interface{}) Builder {
 		case Builder:
 			buf.WriteString(placeholder)
 			buf.WriteValue(on)
+		}
+		if m == joinUsing {
+			buf.WriteString(") ")
 		}
 		return nil
 	})

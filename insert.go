@@ -15,11 +15,14 @@ type InsertStmt struct {
 
 	raw
 
+	toIgnore bool
+
 	Table        string
 	Column       []string
 	Value        [][]interface{}
 	ReturnColumn []string
 	RecordID     *int64
+	UpsertValue  map[string]interface{}
 }
 
 type InsertBuilder = InsertStmt
@@ -37,7 +40,12 @@ func (b *InsertStmt) Build(d Dialect, buf Buffer) error {
 		return ErrColumnNotSpecified
 	}
 
-	buf.WriteString("INSERT INTO ")
+	buf.WriteString("INSERT ")
+	if b.toIgnore {
+		buf.WriteString("IGNORE ")
+	}
+	buf.WriteString("INTO ")
+
 	buf.WriteString(d.QuoteIdent(b.Table))
 
 	var placeholderBuf strings.Builder
@@ -64,6 +72,23 @@ func (b *InsertStmt) Build(d Dialect, buf Buffer) error {
 		buf.WriteValue(tuple...)
 	}
 
+	if len(b.UpsertValue) > 0 {
+		buf.WriteString(" ON DUPLICATE KEY UPDATE ")
+
+		i := 0
+		for col, v := range b.UpsertValue {
+			if i > 0 {
+				buf.WriteString(", ")
+			}
+			buf.WriteString(d.QuoteIdent(col))
+			buf.WriteString(" = ")
+			buf.WriteString(d.Placeholder(1))
+
+			buf.WriteValue(v)
+			i++
+		}
+	}
+
 	if len(b.ReturnColumn) > 0 {
 		buf.WriteString(" RETURNING ")
 		for i, col := range b.ReturnColumn {
@@ -80,7 +105,8 @@ func (b *InsertStmt) Build(d Dialect, buf Buffer) error {
 // InsertInto creates an InsertStmt.
 func InsertInto(table string) *InsertStmt {
 	return &InsertStmt{
-		Table: table,
+		Table:       table,
+		UpsertValue: make(map[string]interface{}),
 	}
 }
 
@@ -106,8 +132,9 @@ func (tx *Tx) InsertInto(table string) *InsertStmt {
 func InsertBySql(query string, value ...interface{}) *InsertStmt {
 	return &InsertStmt{
 		raw: raw{
-			Query: query,
-			Value: value,
+			Query:       query,
+			Value:       value,
+			UpsertValue: make(map[string]interface{}),
 		},
 	}
 }
@@ -127,6 +154,11 @@ func (tx *Tx) InsertBySql(query string, value ...interface{}) *InsertStmt {
 	b.runner = tx
 	b.EventReceiver = tx.EventReceiver
 	b.Dialect = tx.Dialect
+	return b
+}
+
+func (b *InsertStmt) SetIgnore(toIgnore bool) *InsertStmt {
+	b.toIgnore = toIgnore
 	return b
 }
 
@@ -199,6 +231,33 @@ func (b *InsertStmt) RecordWithIncrement(structValue interface{}, autoIncrement 
 	}
 
 	b.RecordID = autoIncrement
+	return b
+}
+
+func (b *InsertStmt) SetOnDuplicateKeyUpdate(column string, value interface{}) *InsertStmt {
+
+	b.UpsertValue[column] = value
+	return b
+}
+
+// OnDuplicateKeyUpdate specifies a list of key-value pair
+func (b *InsertStmt) OnDuplicateKeyUpdate(m map[string]interface{}) *InsertStmt {
+	for col, val := range m {
+		b.SetOnDuplicateKeyUpdate(col, val)
+	}
+	return b
+}
+
+// OnDuplicateKeyUpdate specifies a list of key-value pair
+func (b *InsertStmt) OnDuplicateKeyUpdateRecord(structValue interface{}) *InsertStmt {
+	v := reflect.Indirect(reflect.ValueOf(structValue))
+
+	if v.Kind() == reflect.Struct {
+		m := structMap(v)
+		for col, val := range m {
+			b.SetOnDuplicateKeyUpdate(col, val.Interface())
+		}
+	}
 	return b
 }
 

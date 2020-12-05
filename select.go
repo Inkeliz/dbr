@@ -348,6 +348,25 @@ func (b *SelectStmt) Rows() (*sql.Rows, error) {
 	return b.RowsContext(context.Background())
 }
 
+// Rows executes the query and returns the rows returned, or any error encountered.
+func (b *SelectStmt) LoadOneRaw(value ...interface{}) error {
+	rows, err := b.Rows()
+	if err != nil {
+		return err
+	}
+
+	if !rows.Next() {
+		return ErrNotFound
+	}
+
+	err = rows.Scan(value...)
+	if err != nil {
+		return err
+	}
+
+	return rows.Close()
+}
+
 func (b *SelectStmt) RowsContext(ctx context.Context) (*sql.Rows, error) {
 	_, rows, err := queryRows(ctx, b.runner, b.EventReceiver, b, b.Dialect)
 	return rows, err

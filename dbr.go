@@ -180,7 +180,7 @@ func queryRows(ctx context.Context, runner runner, log EventReceiver, builder Bu
 		ctx = traceImpl.SpanStart(ctx, "dbr.select", query)
 		defer traceImpl.SpanFinish(ctx)
 	}
-
+	
 	rows, err := runner.QueryContext(ctx, query, value...)
 	if err != nil {
 		if hasTracingImpl {

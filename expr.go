@@ -1,8 +1,9 @@
 package dbr
 
 type raw struct {
-	Query string
-	Value []interface{}
+	Query       string
+	Value       []interface{}
+	UpsertValue map[string]interface{}
 }
 
 // Expr allows raw expression to be used when current SQL syntax is
